@@ -13,6 +13,7 @@ WHISPER_MODELS = {
 
 # Translation Models via OpenRouter
 TRANSLATION_MODELS = {
+    "openai/gpt-oss-120b:free": "GPT-OSS 120B (Free)",
     "google/gemini-2.0-flash-exp": "Gemini 2.0 Flash (Rẻ, nhanh)",
     "deepseek/deepseek-chat": "DeepSeek Chat (Rẻ nhất)",
     "openai/gpt-4o-mini": "GPT-4o Mini (Cân bằng)",
@@ -62,7 +63,7 @@ OPENAI_VOICES = {
 # Default Values
 DEFAULTS = {
     "whisper_model": "tiny",
-    "translation_model": "google/gemini-2.0-flash-exp",
+    "translation_model": "openai/gpt-oss-120b:free",
     "tts_provider": "fpt",
     "voice": "banmai",
     "speed": 1.0,

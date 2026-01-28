@@ -1,15 +1,14 @@
 # VietDub Solo Dependencies
 
-streamlit>=1.32.0
-openai-whisper>=20231117
-python-dotenv>=1.0.0
-requests>=2.31.0
+streamlit
+openai-whisper
+python-dotenv
+requests
 moviepy<2.0.0
 decorator
-audioop-lts  # Bản vá cho Python 3.13 (do audioop bị xóa)
-ffmpeg-python>=0.2.0
-pandas>=2.0.0
-pydub>=0.25.1
-yt-dlp>=2024.1.0
-torch>=2.0.0
-numpy>=1.24.0
+ffmpeg-python
+pandas
+pydub
+yt-dlp
+torch
+numpy
