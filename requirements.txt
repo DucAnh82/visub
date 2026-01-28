@@ -5,8 +5,8 @@ openai-whisper>=20231117
 python-dotenv>=1.0.0
 requests>=2.31.0
 moviepy<2.0.0
-decorator<5.0.0
-pyaudioop  # Sửa lỗi ModuleNotFoundError: No module named 'audioop' trên Python 3.13
+decorator
+audioop-lts  # Bản vá cho Python 3.13 (do audioop bị xóa)
 ffmpeg-python>=0.2.0
 pandas>=2.0.0
 pydub>=0.25.1
