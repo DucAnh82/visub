@@ -170,7 +170,7 @@ def init_session_state():
         'voice': DEFAULTS['voice'],
         'speed': DEFAULTS['speed'],
         'original_volume': DEFAULTS['original_volume'],
-        'dubbed_volume': DEFAULTS['dubbed_volume']
+        'dubbed_volume': DEFAULTS.get('dubbed_volume', 1.0)
     }
     
     for key, value in defaults.items():
