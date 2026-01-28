@@ -133,30 +133,53 @@ def parse_translation_response(response: str) -> Dict[int, str]:
     Returns:
         Dict mapping id -> vietnamese text
     """
+    import re
+    
     # Tìm JSON trong response
     # LLM có thể trả về với text bổ sung
-    start = response.find('[')
-    end = response.rfind(']') + 1
     
-    if start == -1 or end == 0:
-        # Thử tìm trong code block
-        if '```json' in response:
-            start = response.find('```json') + 7
-            end = response.find('```', start)
-            response = response[start:end]
-        elif '```' in response:
-            start = response.find('```') + 3
-            end = response.find('```', start)
-            response = response[start:end]
+    # Thử tìm trong code block trước
+    if '```json' in response:
+        match = re.search(r'```json\s*([\s\S]*?)\s*```', response)
+        if match:
+            response = match.group(1)
+    elif '```' in response:
+        match = re.search(r'```\s*([\s\S]*?)\s*```', response)
+        if match:
+            response = match.group(1)
     else:
-        response = response[start:end]
+        # Tìm JSON array
+        start = response.find('[')
+        end = response.rfind(']') + 1
+        if start != -1 and end > 0:
+            response = response[start:end]
     
-    translations = json.loads(response)
+    try:
+        translations = json.loads(response.strip())
+    except json.JSONDecodeError:
+        # Thử sửa JSON bị lỗi
+        response = response.strip()
+        if not response.startswith('['):
+            response = '[' + response
+        if not response.endswith(']'):
+            response = response + ']'
+        translations = json.loads(response)
     
-    return {
-        item["id"]: item["vietnamese"]
-        for item in translations
-    }
+    result = {}
+    for item in translations:
+        # Hỗ trợ nhiều format: id có thể là int hoặc string
+        item_id = item.get("id") or item.get("ID") or item.get("Id")
+        vietnamese = item.get("vietnamese") or item.get("Vietnamese") or item.get("vi") or item.get("translation")
+        
+        if item_id is not None and vietnamese:
+            # Chuyển id sang int nếu có thể
+            try:
+                item_id = int(item_id)
+            except (ValueError, TypeError):
+                pass
+            result[item_id] = vietnamese
+    
+    return result
 
 
 def translate_single(
@@ -199,6 +222,7 @@ def estimate_cost(segments: List[Dict], model: str) -> float:
     
     # Pricing (approximate, per 1M tokens)
     pricing = {
+        "openai/gpt-oss-120b:free": 0.0,  # Free model
         "google/gemini-2.0-flash-exp": 0.0,  # Free tier
         "deepseek/deepseek-chat": 0.14,
         "openai/gpt-4o-mini": 0.15,
