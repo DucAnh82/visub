@@ -205,68 +205,74 @@ def get_tts_provider(provider_name: str, api_key: str) -> TTSProvider:
 
 def adjust_audio_speed(audio_path: str, speed: float) -> str:
     """
-    Điều chỉnh tốc độ audio
+    Điều chỉnh tốc độ audio bằng thuật toán chất lượng cao (giữ pitch)
     
     Args:
         audio_path: Đường dẫn file audio
-        speed: Tốc độ mới (1.0 = không đổi)
+        speed: Tốc độ mới (1.0 = không đổi, >1.0 = nhanh hơn)
     
     Returns:
         Đường dẫn file audio mới
     """
-    audio = AudioSegment.from_file(audio_path)
-    
-    # Thay đổi sample rate để đổi speed
-    new_sample_rate = int(audio.frame_rate * speed)
-    audio = audio._spawn(audio.raw_data, overrides={
-        "frame_rate": new_sample_rate
-    }).set_frame_rate(audio.frame_rate)
-    
     output_path = tempfile.mktemp(suffix=".mp3")
-    audio.export(output_path, format="mp3")
     
-    # Cleanup old file
-    if os.path.exists(audio_path):
-        os.remove(audio_path)
+    # Sử dụng FFmpeg atempo filter để giữ pitch khi thay đổi tốc độ
+    # atempo chỉ hỗ trợ từ 0.5 đến 2.0. Nếu speed > 2.0, cần chain filter
+    atempo_filter = f"atempo={speed}"
+    if speed > 2.0:
+        atempo_filter = f"atempo=2.0,atempo={speed/2.0}"
+        
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", audio_path,
+        "-filter:a", atempo_filter,
+        "-vn",
+        output_path
+    ]
     
-    return output_path
+    try:
+        subprocess.run(cmd, capture_output=True, check=True)
+        # Cleanup old file
+        if os.path.exists(audio_path):
+            os.remove(audio_path)
+        return output_path
+    except Exception as e:
+        print(f"Error adjusting speed: {e}")
+        return audio_path
 
 
 def get_audio_duration(audio_path: str) -> float:
     """Lấy duration của audio file (seconds)"""
-    audio = AudioSegment.from_file(audio_path)
-    return len(audio) / 1000.0
+    try:
+        audio = AudioSegment.from_file(audio_path)
+        return len(audio) / 1000.0
+    except:
+        return 0.0
 
 
 def fit_audio_to_duration(
     audio_path: str,
     target_duration: float,
-    max_speed: float = 1.3
+    max_speed: float = 1.5  # Tăng max speed lên 1.5
 ) -> str:
     """
     Điều chỉnh audio để fit vào duration mục tiêu
-    
-    Args:
-        audio_path: Đường dẫn audio
-        target_duration: Duration mục tiêu (seconds)
-        max_speed: Tốc độ tối đa cho phép
-    
-    Returns:
-        Đường dẫn audio đã điều chỉnh
     """
     current_duration = get_audio_duration(audio_path)
     
     if current_duration <= target_duration:
         return audio_path
     
-    # Tính speed cần thiết
-    required_speed = current_duration / target_duration
+    # Tính speed cần thiết + 10% buffer an toàn
+    required_speed = (current_duration / target_duration) * 1.1
     
     # Giới hạn speed
     actual_speed = min(required_speed, max_speed)
     
     return adjust_audio_speed(audio_path, actual_speed)
 
+
+import subprocess
 
 def generate_all_audio(
     segments: List[Dict],
@@ -279,18 +285,6 @@ def generate_all_audio(
 ) -> List[Dict]:
     """
     Generate audio cho tất cả segments
-    
-    Args:
-        segments: List segments với vietnamese text
-        provider_name: TTS provider name
-        api_key: API key
-        voice: Voice ID
-        speed: Base speed
-        fit_duration: Có tự động điều chỉnh để fit duration không
-        progress_callback: Callback để update progress
-    
-    Returns:
-        Segments với audio_path đã được điền
     """
     provider = get_tts_provider(provider_name, api_key)
     
@@ -304,12 +298,23 @@ def generate_all_audio(
             continue
         
         try:
+            # Generate audio
             audio_path = provider.synthesize(text, voice, speed)
             
             if audio_path and fit_duration:
-                # Fit audio vào duration của segment
-                target_duration = seg["end"] - seg["start"]
-                audio_path = fit_audio_to_duration(audio_path, target_duration)
+                # Tính khoảng trống cho phép
+                # Nếu có segment tiếp theo, duration = start_next - start_current
+                # Nếu là segment cuối, duration = end_current - start_current
+                
+                start_time = seg["start"]
+                if i < len(segments) - 1:
+                    next_start = segments[i+1]["start"]
+                    # Trừ đi 0.1s làm buffer an toàn để tránh dính nhau
+                    available_duration = max(0.5, next_start - start_time - 0.1) 
+                else:
+                    available_duration = seg["end"] - start_time
+                
+                audio_path = fit_audio_to_duration(audio_path, available_duration)
             
             seg["audio_path"] = audio_path or ""
             

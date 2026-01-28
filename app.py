@@ -575,7 +575,7 @@ def render_step3():
     # Export buttons
     st.markdown("---")
     
-    col1, col2, col3 = st.columns([1, 1, 1])
+    col1, col2, col3, col4 = st.columns([1, 1, 1, 1])
     
     with col1:
         if st.button("⬅️ Quay lại Bước 2", use_container_width=True):
@@ -583,6 +583,45 @@ def render_step3():
             st.rerun()
     
     with col2:
+        if st.button("👁️ Quick Preview 60s", use_container_width=True):
+            if not check_ffmpeg_installed():
+                st.error("FFmpeg chưa được cài đặt!")
+                return
+            
+            with st.status("Đang tạo preview 60s...", expanded=True) as status:
+                try:
+                    ensure_temp_dir()
+                    preview_path = os.path.join(TEMP_DIR, "preview_60s.mp4")
+                    
+                    st.write("🎬 Đang render 60 giây đầu tiên...")
+                    
+                    # Filter segments trong 60s đầu
+                    preview_segments = [
+                        seg for seg in st.session_state.segments 
+                        if seg["start"] < 60
+                    ]
+                    
+                    success = export_video(
+                        st.session_state.video_path,
+                        preview_segments,
+                        preview_path,
+                        original_volume=st.session_state.original_volume,
+                        dubbed_volume=st.session_state.dubbed_volume,
+                        burn_subtitles=burn_subs,
+                        preview_duration=60  # Chỉ render 60s
+                    )
+                    
+                    if success and os.path.exists(preview_path):
+                        status.update(label="✅ Preview sẵn sàng!", state="complete")
+                        st.session_state.preview_path = preview_path
+                        st.rerun()
+                    else:
+                        st.error("Tạo preview thất bại.")
+                        
+                except Exception as e:
+                    st.error(f"Lỗi preview: {str(e)}")
+    
+    with col3:
         if st.button("📄 Export SRT", use_container_width=True):
             try:
                 ensure_temp_dir()
@@ -602,8 +641,8 @@ def render_step3():
             except Exception as e:
                 st.error(f"Lỗi export SRT: {str(e)}")
     
-    with col3:
-        if st.button("🎬 Export Video (MP4)", use_container_width=True, type="primary"):
+    with col4:
+        if st.button("🎬 Export Full Video", use_container_width=True, type="primary"):
             if not check_ffmpeg_installed():
                 st.error("FFmpeg chưa được cài đặt. Vui lòng cài FFmpeg trước.")
                 return
@@ -639,6 +678,12 @@ def render_step3():
                         
                 except Exception as e:
                     st.error(f"Lỗi export: {str(e)}")
+    
+    # Hiển thị preview nếu có
+    if st.session_state.get('preview_path') and os.path.exists(st.session_state.preview_path):
+        st.markdown("---")
+        st.markdown("#### 🎬 Preview Video (60s đầu tiên)")
+        st.video(st.session_state.preview_path)
 
 
 # ============================================

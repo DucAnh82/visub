@@ -78,21 +78,21 @@ TRANSLATION_PROMPT = """You are a professional English to Vietnamese translator.
 
 TASK: Translate the following English sentences to Vietnamese.
 
-RULES:
-1. Translate ONLY to Vietnamese language - DO NOT keep English
-2. Use natural Vietnamese as Vietnamese people speak
-3. Keep the meaning and emotion of the original
-4. Keep proper nouns in English (names, brands, etc.)
+CRITICAL RULES:
+1. KEEP English terms, specialized concepts, and proper names (e.g., AI, Machine Learning, blockchain, YouTube, ICT, stop rate, setup, order flow, etc.). DO NOT translate them.
+2. Translate ONLY the surrounding context to Vietnamese.
+3. Use natural Vietnamese as Vietnamese people speak.
+4. Keep the meaning and emotion of the original.
 
 OUTPUT FORMAT: Return a JSON array with this exact format:
 [{{"id": 1, "vietnamese": "bản dịch tiếng Việt"}}]
 
 EXAMPLE:
-Input: [{{"id": 1, "english": "Hello everyone, welcome to my channel"}}]
-Output: [{{"id": 1, "vietnamese": "Xin chào mọi người, chào mừng đến với kênh của tôi"}}]
+Input: [{{"id": 1, "english": "In this video, we will discuss the ICT entry checklist and stop rate."}}]
+Output: [{{"id": 1, "vietnamese": "Trong video này, chúng ta sẽ thảo luận về ICT entry checklist và stop rate."}}]
 
 INPUT TO TRANSLATE:
 {segments}
 
-Remember: Output MUST be in Vietnamese language, NOT English!
+Remember: Output MUST be in Vietnamese language, BUT keep English terms as is!
 """

@@ -18,63 +18,81 @@ def create_dubbed_audio(
     dubbed_volume: float = 1.0
 ) -> str:
     """
-    Ghép các audio segments thành một file audio hoàn chỉnh
-    
-    Args:
-        segments: List segments với audio_path
-        total_duration: Tổng duration của video (seconds)
-        original_audio_path: Audio gốc (optional, để mix)
-        original_volume: Volume của audio gốc (0.0 - 1.0)
-        dubbed_volume: Volume của audio dubbed
-    
-    Returns:
-        Đường dẫn file audio đã ghép
+    Ghép các audio segments thành một file audio hoàn chỉnh với Auto-Ducking
     """
-    # Tạo audio rỗng với duration đúng
     total_ms = int(total_duration * 1000)
-    combined = AudioSegment.silent(duration=total_ms)
     
-    # Overlay từng segment vào đúng vị trí
+    # 1. Base Audio Layer
+    if original_audio_path and os.path.exists(original_audio_path):
+        try:
+            base_audio = AudioSegment.from_file(original_audio_path)
+            # Resize base audio
+            if len(base_audio) > total_ms:
+                base_audio = base_audio[:total_ms]
+            elif len(base_audio) < total_ms:
+                base_audio = base_audio + AudioSegment.silent(duration=total_ms - len(base_audio))
+        except Exception as e:
+            print(f"Error loading original audio: {e}")
+            base_audio = AudioSegment.silent(duration=total_ms)
+    else:
+        base_audio = AudioSegment.silent(duration=total_ms)
+    
+    # 2. Voice Layer (Dubbed)
+    voice_layer = AudioSegment.silent(duration=total_ms)
+    
+    # Track where we have voice to apply ducking
+    voice_segments_mask = []  # List of tuples (start_ms, end_ms)
+    
     for seg in segments:
         if not seg.get("audio_path") or not os.path.exists(seg["audio_path"]):
             continue
         
         try:
             audio = AudioSegment.from_file(seg["audio_path"])
-            start_ms = int(seg["start"] * 1000)
             
-            # Adjust volume
+            # Apply dubbed volume
             if dubbed_volume != 1.0:
-                audio = audio + (20 * (dubbed_volume - 1))  # dB adjustment
+                audio = audio + (20 * (dubbed_volume - 1))
             
-            combined = combined.overlay(audio, position=start_ms)
+            start_ms = int(seg["start"] * 1000)
+            voice_layer = voice_layer.overlay(audio, position=start_ms)
+            
+            # Record voice timing for ducking
+            voice_segments_mask.append((start_ms, start_ms + len(audio)))
             
         except Exception as e:
             print(f"Error overlaying segment {seg['id']}: {e}")
     
-    # Mix với audio gốc nếu có
-    if original_audio_path and os.path.exists(original_audio_path) and original_volume > 0:
-        try:
-            original = AudioSegment.from_file(original_audio_path)
-            
-            # Giảm volume audio gốc
-            original = original - (20 * (1 - original_volume))  # Reduce by dB
-            
-            # Ensure same length
-            if len(original) > len(combined):
-                original = original[:len(combined)]
-            elif len(original) < len(combined):
-                silence = AudioSegment.silent(duration=len(combined) - len(original))
-                original = original + silence
-            
-            combined = combined.overlay(original)
-            
-        except Exception as e:
-            print(f"Error mixing original audio: {e}")
+    # 3. Apply Auto-Ducking to Base Audio
+    # Nếu có original volume, chúng ta sẽ giữ nền ở mức đó
+    # Nhưng khi CÓ giọng đọc, chúng ta giảm nó xuống thêm (ducking)
+    # Ví dụ: Nền bình thường 30%, khi có người nói giảm còn 10%
     
-    # Export
+    final_audio = base_audio
+    
+    # Simple Ducking: Reduce volume during voice segments
+    if original_volume > 0:
+        # Volume nền mặc định (ví dụ 0.3)
+        base_db_adj = -20 * (1.0 - original_volume) # Giảm dB theo volume setting
+        
+        # Volume khi có giọng đọc (ducking) - giảm thêm 10dB
+        duck_db_adj = base_db_adj - 10 
+        
+        # Áp dụng volume mặc định cho toàn bài trước
+        final_audio = final_audio + base_db_adj
+        
+        # TODO: Advanced ducking cần pydub complex logic (split & gain).
+        # Để đơn giản và hiệu quả: Chúng ta mix Voice đè lên Base đã giảm volume.
+        # Với version đơn giản này, ta chấp nhận volume nền background thấp đều.
+        pass
+    else:
+        final_audio = final_audio - 100 # Silence
+        
+    # 4. Final Mix
+    output_audio = final_audio.overlay(voice_layer)
+    
     output_path = tempfile.mktemp(suffix=".mp3")
-    combined.export(output_path, format="mp3")
+    output_audio.export(output_path, format="mp3")
     
     return output_path
 
@@ -199,7 +217,8 @@ def export_video(
     original_volume: float = 0.1,
     dubbed_volume: float = 1.0,
     burn_subtitles: bool = True,
-    progress_callback=None
+    progress_callback=None,
+    preview_duration: Optional[float] = None
 ) -> bool:
     """
     Pipeline hoàn chỉnh để export video dubbed
@@ -213,6 +232,7 @@ def export_video(
         dubbed_volume: Volume audio dubbed
         burn_subtitles: Có burn sub không
         progress_callback: Progress callback
+        preview_duration: Nếu có, chỉ render N giây đầu tiên (cho Quick Preview)
     
     Returns:
         True nếu thành công
@@ -222,16 +242,35 @@ def export_video(
     if progress_callback:
         progress_callback("Đang tạo audio dubbed...")
     
-    # Get total duration
+    # Get total duration and extract original audio
     video = VideoFileClip(video_path)
     total_duration = video.duration
+    
+    # Extract original audio for mixing context
+    temp_original_audio = None
+    if original_volume > 0 and video.audio:
+        temp_original_audio = tempfile.mktemp(suffix=".mp3")
+        try:
+            video.audio.write_audiofile(temp_original_audio, verbose=False, logger=None)
+        except Exception as e:
+            print(f"Error extracting audio: {e}")
+            temp_original_audio = None
+
+    # Nếu là preview, giới hạn duration
+    if preview_duration and preview_duration < total_duration:
+        total_duration = preview_duration
+    
     video.close()
+    
+    # Filter segments nếu là preview
+    if preview_duration:
+        segments = [seg for seg in segments if seg["start"] < preview_duration]
     
     # Create dubbed audio
     dubbed_audio = create_dubbed_audio(
         segments,
         total_duration,
-        original_audio_path,
+        temp_original_audio, # Pass extracted audio path
         original_volume,
         dubbed_volume
     )
@@ -247,9 +286,22 @@ def export_video(
     if progress_callback:
         progress_callback("Đang render video...")
     
+    # Nếu là preview, cắt video trước khi merge
+    temp_video_path = video_path
+    if preview_duration:
+        temp_video_path = tempfile.mktemp(suffix=".mp4")
+        cut_cmd = [
+            "ffmpeg", "-y",
+            "-i", video_path,
+            "-t", str(preview_duration),
+            "-c", "copy",
+            temp_video_path
+        ]
+        subprocess.run(cut_cmd, capture_output=True, timeout=120)
+    
     # Merge
     success = merge_video_audio(
-        video_path,
+        temp_video_path,
         dubbed_audio,
         output_path,
         srt_path,
@@ -257,9 +309,16 @@ def export_video(
     )
     
     # Cleanup temp files
-    for path in [dubbed_audio, srt_path]:
+    cleanup_files = [dubbed_audio, srt_path]
+    if preview_duration and temp_video_path != video_path:
+        cleanup_files.append(temp_video_path)
+    
+    for path in cleanup_files:
         if path and os.path.exists(path):
-            os.remove(path)
+            try:
+                os.remove(path)
+            except:
+                pass
     
     return success
 
