@@ -31,36 +31,64 @@ def translate_segments(
         Segments với trường 'vietnamese' đã được điền
     """
     if not api_key:
-        raise ValueError("OpenRouter API key is required")
+        raise ValueError("Vui lòng nhập OpenRouter API Key trong Sidebar!")
     
     # Chia thành batches
     batches = [segments[i:i + batch_size] for i in range(0, len(segments), batch_size)]
     
     for batch in batches:
-        # Chuẩn bị text để dịch
-        text_to_translate = json.dumps([
-            {"id": seg["id"], "english": seg["text"]}
-            for seg in batch
-        ], ensure_ascii=False, indent=2)
-        
-        prompt = TRANSLATION_PROMPT.format(segments=text_to_translate)
-        
-        # Gọi API
-        response = call_openrouter(api_key, model, prompt)
-        
-        if response:
-            # Parse response và cập nhật segments
-            try:
-                translations = parse_translation_response(response)
-                for seg in batch:
-                    if seg["id"] in translations:
-                        seg["vietnamese"] = translations[seg["id"]]
-            except Exception as e:
-                print(f"Error parsing translation: {e}")
-                # Fallback: giữ nguyên text gốc
+        try:
+            # Chuẩn bị text để dịch
+            text_to_translate = json.dumps([
+                {"id": seg["id"], "english": seg["text"]}
+                for seg in batch
+            ], ensure_ascii=False, indent=2)
+            
+            prompt = TRANSLATION_PROMPT.format(segments=text_to_translate)
+            
+            # Gọi API
+            response = call_openrouter(api_key, model, prompt)
+            
+            if response:
+                # Parse response và cập nhật segments
+                try:
+                    translations = parse_translation_response(response)
+                    
+                    if not translations:
+                        # Nếu parse không được gì, fallback
+                        raise ValueError("Không thể parse response từ AI")
+                    
+                    for seg in batch:
+                        seg_id = seg["id"]
+                        # Thử nhiều cách match id
+                        if seg_id in translations:
+                            seg["vietnamese"] = translations[seg_id]
+                        elif str(seg_id) in translations:
+                            seg["vietnamese"] = translations[str(seg_id)]
+                        else:
+                            # Fallback nếu không tìm thấy
+                            if not seg.get("vietnamese"):
+                                seg["vietnamese"] = seg["text"]
+                                
+                except Exception as parse_error:
+                    print(f"Error parsing translation: {parse_error}")
+                    print(f"Raw response: {response[:500] if response else 'None'}")
+                    # Fallback: giữ nguyên text gốc
+                    for seg in batch:
+                        if not seg.get("vietnamese"):
+                            seg["vietnamese"] = seg["text"]
+            else:
+                # Nếu API không trả về gì, fallback
                 for seg in batch:
                     if not seg.get("vietnamese"):
                         seg["vietnamese"] = seg["text"]
+                        
+        except Exception as batch_error:
+            print(f"Error processing batch: {batch_error}")
+            # Fallback cho cả batch
+            for seg in batch:
+                if not seg.get("vietnamese"):
+                    seg["vietnamese"] = seg["text"]
     
     return segments
 
