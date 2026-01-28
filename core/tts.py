@@ -1,0 +1,320 @@
+"""
+VietDub Solo - Text-to-Speech Module
+Hỗ trợ nhiều TTS providers: FPT.AI, ElevenLabs, OpenAI
+"""
+
+import requests
+import os
+import tempfile
+from typing import Optional, List, Dict
+from pydub import AudioSegment
+import time
+
+
+class TTSProvider:
+    """Base class for TTS providers"""
+    
+    def synthesize(self, text: str, voice: str, speed: float = 1.0) -> Optional[str]:
+        """
+        Synthesize text to speech
+        
+        Args:
+            text: Text to synthesize
+            voice: Voice ID
+            speed: Speech speed (0.8 - 1.2)
+        
+        Returns:
+            Path to audio file or None if failed
+        """
+        raise NotImplementedError
+
+
+class FPTProvider(TTSProvider):
+    """FPT.AI TTS Provider - Best for Vietnamese"""
+    
+    API_URL = "https://api.fpt.ai/hmi/tts/v5"
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    def synthesize(self, text: str, voice: str = "banmai", speed: float = 1.0) -> Optional[str]:
+        if not self.api_key:
+            raise ValueError("FPT.AI API key is required")
+        
+        headers = {
+            "api-key": self.api_key,
+            "speed": str(speed),
+            "voice": voice
+        }
+        
+        try:
+            response = requests.post(
+                self.API_URL,
+                headers=headers,
+                data=text.encode('utf-8'),
+                timeout=30
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            
+            if not data.get("async"):
+                return None
+            
+            # FPT.AI trả về URL, cần download
+            audio_url = data["async"]
+            
+            # Đợi file sẵn sàng
+            time.sleep(1)
+            
+            # Download audio
+            audio_response = requests.get(audio_url, timeout=30)
+            audio_response.raise_for_status()
+            
+            # Lưu file
+            output_path = tempfile.mktemp(suffix=".mp3")
+            with open(output_path, 'wb') as f:
+                f.write(audio_response.content)
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"FPT.AI TTS error: {e}")
+            return None
+
+
+class ElevenLabsProvider(TTSProvider):
+    """ElevenLabs TTS Provider - Good for multilingual"""
+    
+    API_URL = "https://api.elevenlabs.io/v1/text-to-speech"
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    def synthesize(self, text: str, voice: str = "21m00Tcm4TlvDq8ikWAM", speed: float = 1.0) -> Optional[str]:
+        if not self.api_key:
+            raise ValueError("ElevenLabs API key is required")
+        
+        headers = {
+            "Accept": "audio/mpeg",
+            "Content-Type": "application/json",
+            "xi-api-key": self.api_key
+        }
+        
+        payload = {
+            "text": text,
+            "model_id": "eleven_multilingual_v2",
+            "voice_settings": {
+                "stability": 0.5,
+                "similarity_boost": 0.75,
+                "style": 0.0,
+                "use_speaker_boost": True
+            }
+        }
+        
+        try:
+            response = requests.post(
+                f"{self.API_URL}/{voice}",
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+            response.raise_for_status()
+            
+            output_path = tempfile.mktemp(suffix=".mp3")
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            
+            # Adjust speed if needed
+            if speed != 1.0:
+                output_path = adjust_audio_speed(output_path, speed)
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"ElevenLabs TTS error: {e}")
+            return None
+
+
+class OpenAIProvider(TTSProvider):
+    """OpenAI TTS Provider - Easy to use"""
+    
+    API_URL = "https://api.openai.com/v1/audio/speech"
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    def synthesize(self, text: str, voice: str = "nova", speed: float = 1.0) -> Optional[str]:
+        if not self.api_key:
+            raise ValueError("OpenAI API key is required")
+        
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+        
+        payload = {
+            "model": "tts-1",
+            "input": text,
+            "voice": voice,
+            "speed": speed
+        }
+        
+        try:
+            response = requests.post(
+                self.API_URL,
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+            response.raise_for_status()
+            
+            output_path = tempfile.mktemp(suffix=".mp3")
+            with open(output_path, 'wb') as f:
+                f.write(response.content)
+            
+            return output_path
+            
+        except Exception as e:
+            print(f"OpenAI TTS error: {e}")
+            return None
+
+
+def get_tts_provider(provider_name: str, api_key: str) -> TTSProvider:
+    """
+    Factory function để lấy TTS provider
+    
+    Args:
+        provider_name: 'fpt', 'elevenlabs', hoặc 'openai'
+        api_key: API key tương ứng
+    
+    Returns:
+        TTSProvider instance
+    """
+    providers = {
+        "fpt": FPTProvider,
+        "elevenlabs": ElevenLabsProvider,
+        "openai": OpenAIProvider
+    }
+    
+    if provider_name not in providers:
+        raise ValueError(f"Unknown TTS provider: {provider_name}")
+    
+    return providers[provider_name](api_key)
+
+
+def adjust_audio_speed(audio_path: str, speed: float) -> str:
+    """
+    Điều chỉnh tốc độ audio
+    
+    Args:
+        audio_path: Đường dẫn file audio
+        speed: Tốc độ mới (1.0 = không đổi)
+    
+    Returns:
+        Đường dẫn file audio mới
+    """
+    audio = AudioSegment.from_file(audio_path)
+    
+    # Thay đổi sample rate để đổi speed
+    new_sample_rate = int(audio.frame_rate * speed)
+    audio = audio._spawn(audio.raw_data, overrides={
+        "frame_rate": new_sample_rate
+    }).set_frame_rate(audio.frame_rate)
+    
+    output_path = tempfile.mktemp(suffix=".mp3")
+    audio.export(output_path, format="mp3")
+    
+    # Cleanup old file
+    if os.path.exists(audio_path):
+        os.remove(audio_path)
+    
+    return output_path
+
+
+def get_audio_duration(audio_path: str) -> float:
+    """Lấy duration của audio file (seconds)"""
+    audio = AudioSegment.from_file(audio_path)
+    return len(audio) / 1000.0
+
+
+def fit_audio_to_duration(
+    audio_path: str,
+    target_duration: float,
+    max_speed: float = 1.3
+) -> str:
+    """
+    Điều chỉnh audio để fit vào duration mục tiêu
+    
+    Args:
+        audio_path: Đường dẫn audio
+        target_duration: Duration mục tiêu (seconds)
+        max_speed: Tốc độ tối đa cho phép
+    
+    Returns:
+        Đường dẫn audio đã điều chỉnh
+    """
+    current_duration = get_audio_duration(audio_path)
+    
+    if current_duration <= target_duration:
+        return audio_path
+    
+    # Tính speed cần thiết
+    required_speed = current_duration / target_duration
+    
+    # Giới hạn speed
+    actual_speed = min(required_speed, max_speed)
+    
+    return adjust_audio_speed(audio_path, actual_speed)
+
+
+def generate_all_audio(
+    segments: List[Dict],
+    provider_name: str,
+    api_key: str,
+    voice: str,
+    speed: float = 1.0,
+    fit_duration: bool = True,
+    progress_callback=None
+) -> List[Dict]:
+    """
+    Generate audio cho tất cả segments
+    
+    Args:
+        segments: List segments với vietnamese text
+        provider_name: TTS provider name
+        api_key: API key
+        voice: Voice ID
+        speed: Base speed
+        fit_duration: Có tự động điều chỉnh để fit duration không
+        progress_callback: Callback để update progress
+    
+    Returns:
+        Segments với audio_path đã được điền
+    """
+    provider = get_tts_provider(provider_name, api_key)
+    
+    for i, seg in enumerate(segments):
+        if progress_callback:
+            progress_callback(f"Generating audio {i+1}/{len(segments)}...")
+        
+        text = seg.get("vietnamese") or seg.get("text", "")
+        
+        if not text:
+            continue
+        
+        try:
+            audio_path = provider.synthesize(text, voice, speed)
+            
+            if audio_path and fit_duration:
+                # Fit audio vào duration của segment
+                target_duration = seg["end"] - seg["start"]
+                audio_path = fit_audio_to_duration(audio_path, target_duration)
+            
+            seg["audio_path"] = audio_path or ""
+            
+        except Exception as e:
+            print(f"Error generating audio for segment {seg['id']}: {e}")
+            seg["audio_path"] = ""
+    
+    return segments
