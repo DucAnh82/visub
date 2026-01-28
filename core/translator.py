@@ -250,6 +250,8 @@ def estimate_cost(segments: List[Dict], model: str) -> float:
     
     # Pricing (approximate, per 1M tokens)
     pricing = {
+        "meta-llama/llama-3.3-70b-instruct:free": 0.0,  # Free model
+        "allenai/molmo-2-8b:free": 0.0,  # Free model
         "openai/gpt-oss-120b:free": 0.0,  # Free model
         "google/gemini-2.0-flash-exp": 0.0,  # Free tier
         "deepseek/deepseek-chat": 0.14,
