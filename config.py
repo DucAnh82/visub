@@ -74,16 +74,25 @@ DEFAULTS = {
 }
 
 # Translation Prompt Template
-TRANSLATION_PROMPT = """Bạn là dịch giả chuyên nghiệp. Dịch các câu sau từ tiếng Anh sang tiếng Việt tự nhiên, phù hợp với ngữ cảnh video.
+TRANSLATION_PROMPT = """You are a professional English to Vietnamese translator.
 
-Quy tắc:
-1. Giữ nguyên ý nghĩa và cảm xúc của câu gốc
-2. Dịch tự nhiên như người Việt nói, không dịch word-by-word
-3. Giữ ngắn gọn để phù hợp với thời lượng
-4. Giữ nguyên các tên riêng, thuật ngữ chuyên ngành
+TASK: Translate the following English sentences to Vietnamese.
 
-Trả về JSON array với format: [{"id": 1, "vietnamese": "bản dịch"}]
+RULES:
+1. Translate ONLY to Vietnamese language - DO NOT keep English
+2. Use natural Vietnamese as Vietnamese people speak
+3. Keep the meaning and emotion of the original
+4. Keep proper nouns in English (names, brands, etc.)
 
-Các câu cần dịch:
+OUTPUT FORMAT: Return a JSON array with this exact format:
+[{{"id": 1, "vietnamese": "bản dịch tiếng Việt"}}]
+
+EXAMPLE:
+Input: [{{"id": 1, "english": "Hello everyone, welcome to my channel"}}]
+Output: [{{"id": 1, "vietnamese": "Xin chào mọi người, chào mừng đến với kênh của tôi"}}]
+
+INPUT TO TRANSLATE:
 {segments}
+
+Remember: Output MUST be in Vietnamese language, NOT English!
 """
