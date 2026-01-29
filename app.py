@@ -1,5 +1,5 @@
 """
-VietDub - Main Streamlit Application
+VietDub Solo - Main Streamlit Application
 Công cụ dubbing video cá nhân với AI
 """
 
@@ -30,7 +30,7 @@ from utils.file_utils import (
 # ============================================
 
 st.set_page_config(
-    page_title="VietDub",
+    page_title="VietDub Solo",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -777,7 +777,10 @@ def render_step3():
             with st.status("Đang render video...", expanded=True) as status:
                 try:
                     ensure_temp_dir()
-                    output_path = os.path.join(TEMP_DIR, "output_dubbed.mp4")
+                    # Determine extension based on format
+                    ext = output_format.lower()
+                    output_filename = f"vietdub_output.{ext}"
+                    output_path = os.path.join(TEMP_DIR, output_filename)
                     
                     st.write("📹 Đang ghép audio...")
                     
@@ -793,12 +796,15 @@ def render_step3():
                     if success and os.path.exists(output_path):
                         status.update(label="✅ Export thành công!", state="complete")
                         
+                        # Determine mime type
+                        mime_type = "video/mp4" if ext == "mp4" else "video/x-matroska"
+                        
                         with open(output_path, 'rb') as f:
                             st.download_button(
-                                label="⬇️ Download Video",
+                                label=f"⬇️ Download Video ({output_format})",
                                 data=f.read(),
-                                file_name="vietdub_output.mp4",
-                                mime="video/mp4"
+                                file_name=output_filename,
+                                mime=mime_type
                             )
                     else:
                         st.error("Export thất bại. Kiểm tra FFmpeg và thử lại.")
@@ -825,7 +831,7 @@ def main():
     render_sidebar()
     
     # Header
-    st.markdown('<h1 class="main-header">🎬 VietDub</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🎬 VietDub Solo</h1>', unsafe_allow_html=True)
     
     # Step indicator
     steps = ["Input", "Edit", "Export"]
