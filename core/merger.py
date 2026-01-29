@@ -97,17 +97,20 @@ def create_dubbed_audio(
     return output_path
 
 
-def create_srt_file(segments: List[Dict], output_path: Optional[str] = None) -> str:
+def create_srt_file(segments: List[Dict], output_path: Optional[str] = None, max_line_width: int = 50) -> str:
     """
-    Tạo file SRT từ segments
+    Tạo file SRT từ segments với xử lý xuống dòng
     
     Args:
         segments: List segments
         output_path: Đường dẫn output
+        max_line_width: Số ký tự tối đa trên 1 dòng
     
     Returns:
         Đường dẫn file SRT
     """
+    import textwrap
+    
     if output_path is None:
         output_path = tempfile.mktemp(suffix=".srt")
     
@@ -123,9 +126,13 @@ def create_srt_file(segments: List[Dict], output_path: Optional[str] = None) -> 
         for i, seg in enumerate(segments):
             text = seg.get("vietnamese") or seg.get("text", "")
             
+            # Wrap text to ensure max 2 lines (mostly)
+            wrapped_lines = textwrap.wrap(text, width=max_line_width)
+            wrapped_text = "\n".join(wrapped_lines)
+            
             f.write(f"{i + 1}\n")
             f.write(f"{format_srt_time(seg['start'])} --> {format_srt_time(seg['end'])}\n")
-            f.write(f"{text}\n\n")
+            f.write(f"{wrapped_text}\n\n")
     
     return output_path
 
@@ -135,20 +142,11 @@ def merge_video_audio(
     audio_path: str,
     output_path: str,
     subtitle_path: Optional[str] = None,
-    burn_subtitles: bool = True
+    burn_subtitles: bool = True,
+    font_size: int = 24
 ) -> bool:
     """
     Ghép video với audio mới và (optional) hardsub
-    
-    Args:
-        video_path: Đường dẫn video gốc
-        audio_path: Đường dẫn audio dubbed
-        output_path: Đường dẫn output
-        subtitle_path: Đường dẫn file SRT (optional)
-        burn_subtitles: Có burn subtitles vào video không
-    
-    Returns:
-        True nếu thành công
     """
     try:
         # Build FFmpeg command
@@ -163,9 +161,12 @@ def merge_video_audio(
             # Escape special characters trong path
             escaped_sub_path = subtitle_path.replace("\\", "\\\\").replace(":", "\\:")
             
+            # Adjust style based on font size
+            style = f"FontSize={font_size},PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2,Alignment=2,MarginV=20"
+            
             cmd.extend([
                 "-filter_complex",
-                f"[0:v]subtitles='{escaped_sub_path}':force_style='FontSize=24,PrimaryColour=&HFFFFFF,OutlineColour=&H000000,Outline=2'[v]",
+                f"[0:v]subtitles='{escaped_sub_path}':force_style='{style}'[v]",
                 "-map", "[v]",
                 "-map", "1:a"
             ])
@@ -218,24 +219,12 @@ def export_video(
     dubbed_volume: float = 1.0,
     burn_subtitles: bool = True,
     progress_callback=None,
-    preview_duration: Optional[float] = None
+    preview_duration: Optional[float] = None,
+    font_size: int = 24,
+    max_line_width: int = 50
 ) -> bool:
     """
     Pipeline hoàn chỉnh để export video dubbed
-    
-    Args:
-        video_path: Video gốc
-        segments: Segments với audio
-        output_path: Output path
-        original_audio_path: Audio gốc để mix
-        original_volume: Volume audio gốc
-        dubbed_volume: Volume audio dubbed
-        burn_subtitles: Có burn sub không
-        progress_callback: Progress callback
-        preview_duration: Nếu có, chỉ render N giây đầu tiên (cho Quick Preview)
-    
-    Returns:
-        True nếu thành công
     """
     from moviepy.editor import VideoFileClip
     
@@ -281,7 +270,7 @@ def export_video(
     # Create SRT
     srt_path = None
     if burn_subtitles:
-        srt_path = create_srt_file(segments)
+        srt_path = create_srt_file(segments, max_line_width=max_line_width)
     
     if progress_callback:
         progress_callback("Đang render video...")
@@ -305,7 +294,8 @@ def export_video(
         dubbed_audio,
         output_path,
         srt_path,
-        burn_subtitles
+        burn_subtitles,
+        font_size=font_size
     )
     
     # Cleanup temp files
