@@ -15,7 +15,7 @@ OPENROUTER_API_URL = "https://openrouter.ai/api/v1/chat/completions"
 def translate_segments(
     segments: List[Dict],
     api_key: str,
-    model: str = "google/gemini-2.0-flash-exp",
+    model: str = "google/gemini-2.5-flash-lite",
     batch_size: int = 20
 ) -> List[Dict]:
     """
@@ -213,7 +213,7 @@ def parse_translation_response(response: str) -> Dict[int, str]:
 def translate_single(
     text: str,
     api_key: str,
-    model: str = "google/gemini-2.0-flash-exp"
+    model: str = "google/gemini-2.5-flash-lite"
 ) -> str:
     """
     Dịch một câu đơn lẻ
@@ -264,7 +264,7 @@ def estimate_cost(segments: List[Dict], model: str) -> float:
         
         # Paid Models
         "meta-llama/llama-3.1-8b-instruct": (0.02, 0.05),
-        "google/gemini-2.0-flash-lite-preview-02-05": (0.10, 0.40),
+        "google/gemini-2.5-flash-lite": (0.10, 0.40),
     }
     
     # Default to 0 if unknown
