@@ -1,6 +1,6 @@
 """
 VietDub - Main Streamlit Application
-Công cụ dubbing video cá nhân với AI
+Công cụ AI dubbing video
 """
 
 import streamlit as st
