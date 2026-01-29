@@ -1,5 +1,5 @@
 """
-VietDub Solo - Main Streamlit Application
+Viedub - Main Streamlit Application
 Công cụ dubbing video cá nhân với AI
 """
 
@@ -7,6 +7,10 @@ import streamlit as st
 import pandas as pd
 import os
 import sys
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +34,7 @@ from utils.file_utils import (
 # ============================================
 
 st.set_page_config(
-    page_title="VietDub Solo",
+    page_title="Viedub",
     page_icon="🎬",
     layout="wide",
     initial_sidebar_state="expanded"
@@ -634,7 +638,7 @@ def render_step3():
                 st.download_button(
                     label="⬇️ Download SRT",
                     data=srt_content,
-                    file_name="vietdub_subtitles.srt",
+                    file_name="viedub_subtitles.srt",
                     mime="text/plain"
                 )
                 
@@ -670,7 +674,7 @@ def render_step3():
                             st.download_button(
                                 label="⬇️ Download Video",
                                 data=f.read(),
-                                file_name="vietdub_output.mp4",
+                                file_name="viedub_output.mp4",
                                 mime="video/mp4"
                             )
                     else:
@@ -696,7 +700,7 @@ def main():
     render_sidebar()
     
     # Header
-    st.markdown('<h1 class="main-header">🎬 VietDub Solo</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-header">🎬 Viedub</h1>', unsafe_allow_html=True)
     
     # Step indicator
     steps = ["📥 Input", "✏️ Edit", "🎬 Export"]

@@ -1,3 +1,3 @@
 """
-VietDub Solo - Utility Functions
+Viedub - Utility Functions
 """

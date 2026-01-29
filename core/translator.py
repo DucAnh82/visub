@@ -1,5 +1,5 @@
 """
-VietDub Solo - Translator Module
+Viedub - Translator Module
 Sử dụng OpenRouter API để dịch text sang tiếng Việt
 """
 

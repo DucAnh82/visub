@@ -1,3 +1,3 @@
 """
-VietDub Solo - Core Modules
+Viedub - Core Modules
 """
