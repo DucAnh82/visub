@@ -1,5 +1,5 @@
 """
-Viedub - File Utilities
+VietDub Solo - File Utilities
 """
 
 import os

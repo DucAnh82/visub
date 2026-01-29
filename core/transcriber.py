@@ -1,5 +1,5 @@
 """
-Viedub - Transcriber Module
+VietDub Solo - Transcriber Module
 Sử dụng OpenAI Whisper để transcribe audio thành text với timestamps
 """
 

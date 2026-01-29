@@ -1,5 +1,5 @@
 """
-Viedub - Video Merger Module
+VietDub Solo - Video Merger Module
 Sử dụng FFmpeg để ghép audio dubbed vào video gốc
 """
 

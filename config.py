@@ -1,5 +1,5 @@
 """
-Viedub - Configuration Constants
+VietDub Solo - Configuration Constants
 """
 
 # Whisper Models

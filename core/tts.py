@@ -1,5 +1,5 @@
 """
-Viedub - Text-to-Speech Module
+VietDub Solo - Text-to-Speech Module
 Hỗ trợ nhiều TTS providers: FPT.AI, ElevenLabs, OpenAI
 """
 

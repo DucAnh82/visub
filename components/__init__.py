@@ -1,3 +1,3 @@
 """
-Viedub - UI Components
+VietDub Solo - UI Components
 """
